@@ -63,11 +63,15 @@
 
           const setCarAngleByProgress = (lane, car, progress) => {
             const lanePos = lane.getPointAtLength(progress);
-            const slopeRefPos = lane.getPointAtLength(progress + 1);
-            const angle = Math.atan2(lanePos.y - slopeRefPos.y, lanePos.x - slopeRefPos.x)
+            const slopeRefPos = lane.getPointAtLength(progress + .5);
+            const angleRadians = Math.atan2(lanePos.y - slopeRefPos.y, lanePos.x - slopeRefPos.x);
+            const angleDegrees = angleRadians * (180 / Math.PI);
 
-            car.setAttribute('transform', `rotate(${angle})`);
-            car.setAttribute('transform-origin', `${lanePos.y + -4} ${lanePos.x + -8}`);
+            car.setAttribute('transform', `rotate(${angleDegrees})`);
+
+
+            const yCenter = car.height.baseVal.value / 2;
+            car.setAttribute('transform-origin', `${car.x.animVal.value} ${car.y.animVal.value - yCenter}`);
           };
 
           // Access the lanes.
@@ -82,15 +86,18 @@
           let distance = 1;
           let acceleration = 1;
           const update = () => requestAnimationFrame(() => {
-            console.log('Rendering');
-
-            acceleration += 0.05;
+            // console.log('Rendering');
+            acceleration += 0.005;
 
             distance += acceleration;
 
             // Set test car position.
             setCarPosByProgress(laneOne, testCar, distance);
             setCarAngleByProgress(laneOne, testCar, distance);
+
+            setCarPosByProgress(laneTwo, testCarTwo, distance);
+            setCarAngleByProgress(laneTwo, testCarTwo, distance);
+            // console.log(testCar);
             
             // throw new Error('testing 1 frame');
             update();

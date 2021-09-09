@@ -36,7 +36,12 @@
               <span id="lapsVal">0</span> laps (<span id="currentLap">0</span>%)
             </p>
             <p style="margin: 0;">
-              <span id="laptimeVal">00:00:00</span> best time
+              <!-- <span id="laptimeVal">00:00:00</span> Last lap seconds -->
+              <span id="laptimeVal">0s:0ms</span> Last lap
+            </p>
+            <p style="margin: 0;">
+              <!-- <span id="bestLaptimeVal">00:00:00</span> Best lap seconds -->
+              <span id="bestLaptimeVal">0s:0ms</span> Best lap
             </p>
             <p style="margin: 0;">
               <span id="distanceVal">0</span> miles travelled</p>
@@ -103,6 +108,7 @@
           let carTwoAnglePrev = 0;
 
           let accumulatedDistance = 0;
+          let bestDuration = 0;
           let lapstart = Date.now();
 
           // const BASE_DURATION = 10000;
@@ -135,6 +141,7 @@
           const laptimeValElem = document.querySelector('#laptimeVal');
           const currentLapElem = document.querySelector('#currentLap');
           const derailDangerValElem = document.querySelector('#derailDangerVal');
+          const bestLaptimeValElem = document.querySelector('#bestLaptimeVal');
           
 
 
@@ -207,16 +214,20 @@
           const update = () => requestAnimationFrame(() => {
             let distanceChange = 0;            
 
-            const cappedSpeed = Math.round(Math.min(120, speed * 10));
-
-            if (isAccelerating && cappedSpeed < 30) {
+            if (isAccelerating && speed * 10 < 30) {
                 speed += Math.max(.0125, speed * .00125);
 
-            } else if (isAccelerating && cappedSpeed < 60) {
+            } else if (isAccelerating && speed * 10 < 60) {
                 speed += Math.min(.05, speed * .0175);
 
-            } else if (isAccelerating && cappedSpeed < 120) {
+            } else if (isAccelerating && speed * 10 < 95) {
                 speed += Math.min(.025, speed * .005);
+
+            } else if (isAccelerating && speed * 10 < 120) {
+              speed += speed * .00035;
+
+            } else if (isAccelerating) {
+              speed += speed * .00025;
 
             } else if (speed > 0 && isBraking) {
               speed -= Math.max(0.2, speed * .0775);
@@ -251,8 +262,8 @@
             
             // Update UI.
 
-            speedValElem.innerText = cappedSpeed;
-            distanceValElem.innerText = Math.round(accumulatedDistance / 1000);
+            speedValElem.innerText = Math.round(speed * 10);
+            distanceValElem.innerText = (accumulatedDistance / 1000).toFixed(2);
 
             currentLapElem.innerText =  Math.round(distance / laneTwoLength * 100);
 
@@ -260,9 +271,21 @@
             if (distance >= laneTwoLength) {
               lapsValElem.innerText = Math.floor(accumulatedDistance / laneTwoLength);
               
-              const laptimeDuration = moment.duration(Date.now() - lapstart);
+              const laptimeDurMs = Date.now() - lapstart;
+              const laptimeDuration = moment.duration(laptimeDurMs);
 
-              laptimeValElem.innerText = `${laptimeDuration.get('hours')}:l${laptimeDuration.get('minutes')}:l${laptimeDuration.get('seconds')}.${laptimeDuration.get('milliseconds')}`
+              // const laptimeFmt = `${laptimeDuration.get('hours')}:l${laptimeDuration.get('minutes')}:l${laptimeDuration.get('seconds')}.${laptimeDuration.get('milliseconds')}`;
+              const laptimeFmt = `${laptimeDuration.get('seconds')}s:${laptimeDuration.get('milliseconds')}ms`;
+
+              // Set best time
+              if (!bestDuration || laptimeDuration < bestDuration) {
+                bestLaptimeValElem.innerText = laptimeFmt;
+                bestDuration = laptimeDurMs;
+              }
+
+              // Set previous time
+              laptimeValElem.innerText = laptimeFmt;
+
 
               distance = 1;
               lapstart = Date.now();

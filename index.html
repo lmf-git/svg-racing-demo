@@ -4,6 +4,8 @@
         <meta charset="UTF-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js" integrity="sha512-qTXRIMyZIFb8iQcfjXWCO8+M5Tbc38Qi5WzdPOYZHIlZpzBHG3L3by84BBBOiRGiEb7KKtAOAs5qYdUiZiQNNQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
         <style>
             #track_elem {
@@ -22,14 +24,26 @@
         <!-- TODO: -->
         <!-- Add going too fast around corner crash -->
 
-        <div class="ui" style="display: flex; justify-content: space-evenly;">
+        <div class="ui" style="display: flex; justify-content: space-evenly; position: absolute; z-index: 1;">
           <div class="stats">
-            <p style="margin: 0;">0 mph</p>
-            <p style="margin: 0;">0 laps</p>
-            <p style="margin: 0;">00:00:00 best time</p>
+            <p style="margin: 0;" style="color: green">
+              <span id="derailDangerVal"></span> Derailing
+            </p>
+            <p style="margin: 0;">
+              <span id="speedVal">0</span> mph
+            </p>
+            <p style="margin: 0;">
+              <span id="lapsVal">0</span> laps (<span id="currentLap">0</span>%)
+            </p>
+            <p style="margin: 0;">
+              <span id="laptimeVal">00:00:00</span> best time
+            </p>
+            <p style="margin: 0;">
+              <span id="distanceVal">0</span> miles travelled</p>
           </div>
 
-          <div class="controls">
+          <div class="controls" style="margin-left: 2rem;">
+            Controls:
             <p style="margin: 0;">
               Space -> Accelerate
             </p>
@@ -70,8 +84,62 @@
 
 
         <script>
+          // Add derail danger mechanic
+          // Add derail danger animation
+          // Add cars
+          // Refactor into object/reusable structure
+          // Refine paths
+
+          let derailDangerLimit = 125;
+
           let isAccelerating = false;
           let isBraking = false;
+          
+          let distance = 0;
+          let speed = 0;
+          let velocity = 0;
+          
+          let derailDanger = 0; 
+          let carTwoAnglePrev = 0;
+
+          let accumulatedDistance = 0;
+          let lapstart = Date.now();
+
+          // const BASE_DURATION = 10000;
+
+          // Access the lanes.
+          const laneOne = document.querySelector('#left_track');
+          const laneOneLength = laneOne.getTotalLength();
+          const laneTwo = document.querySelector('#right_track');
+          const laneTwoLength = laneTwo.getTotalLength();
+
+          // Load the cars.
+          const testCar = document.querySelector('#car');
+          const testCarTwo = document.querySelector('#car_two');
+
+          
+          // const RACING = {
+          //   cars: [
+          //     { lane, distance, speed }
+          //   ],
+          //   lanes: []
+          // };
+
+
+
+
+          
+          const speedValElem = document.querySelector('#speedVal');
+          const distanceValElem = document.querySelector('#distanceVal');
+          const lapsValElem = document.querySelector('#lapsVal');
+          const laptimeValElem = document.querySelector('#laptimeVal');
+          const currentLapElem = document.querySelector('#currentLap');
+          const derailDangerValElem = document.querySelector('#derailDangerVal');
+          
+
+
+
+
           window.addEventListener('keydown', ev => {
             if (ev.key === ' ') {
               isAccelerating = true;
@@ -91,9 +159,7 @@
             }
           });
 
-          let speed = 0;
-
-          // const BASE_DURATION = 10000;
+          
           const setCarPosByProgress = (lane, car, progress) => {
             const lanePos = lane.getPointAtLength(progress);
             car.setAttribute('x', lanePos.x - 12.5);
@@ -102,60 +168,105 @@
 
           const setCarAngleByProgress = (lane, car, progress) => {
             const lanePos = lane.getPointAtLength(progress);
-            const slopeRefPos = lane.getPointAtLength(progress + .5);
+            const slopeRefPos = lane.getPointAtLength(progress + .025);
             const angleRadians = Math.atan2(lanePos.y - slopeRefPos.y, lanePos.x - slopeRefPos.x);
             const angleDegrees = angleRadians * (180 / Math.PI);
 
             car.setAttribute('transform', `rotate(${angleDegrees})`);
+            
+            return angleDegrees;
           };
 
-          // Access the lanes.
-          const laneOne = document.querySelector('#left_track');
-          const laneOneLength = laneOne.getTotalLength();
-          const laneTwo = document.querySelector('#right_track');
-          const laneTwoLength = laneTwo.getTotalLength();
 
-          // Load the cars.
-          const testCar = document.querySelector('#car');
-          const testCarTwo = document.querySelector('#car_two');
+          // 10% chance of derailing, every second spent going too fast (the luck element).
+          setInterval(() => {
+            // derailDangerValElem.innerText = Math.round(derailDanger);
 
+            if (derailDanger < (derailDangerLimit * 0.5))
+              derailDangerValElem.parentElement.style.color = 'green';
 
-          let distance = 1;
+            if (derailDanger > (derailDangerLimit * 0.6))
+              derailDangerValElem.parentElement.style.color = 'orange';
+
+            if (derailDanger > (derailDangerLimit * 0.90)) {
+              derailDangerValElem.parentElement.style.color = 'red';
+
+              // Check if car will derail.
+              const noRiskSpeed = speed * 10 < 40;
+              if (Math.random() < .10 && !noRiskSpeed) {
+                // Push car back a distance based on the current speed, the faster - the further back.
+                distance = distance - (speed * 10);
+                
+                // Slow the car down completely.
+                speed = 0;
+              }
+            }
+
+          }, 250);
           
           const update = () => requestAnimationFrame(() => {
-            if (isAccelerating) {
-              speed += 0.225;
+            let distanceChange = 0;            
 
-            } else if (speed > 0) {
-              if (isBraking) 
-                speed -= 0.175;
-              else
-                speed -= 0.075;
-            }
+            const cappedSpeed = Math.round(Math.min(120, speed * 10));
+
+            if (isAccelerating && cappedSpeed < 30) {
+                speed += Math.max(.0125, speed * .00125);
+
+            } else if (isAccelerating && cappedSpeed < 60) {
+                speed += Math.min(.05, speed * .0175);
+
+            } else if (isAccelerating && cappedSpeed < 120) {
+                speed += Math.min(.025, speed * .005);
+
+            } else if (speed > 0 && isBraking) {
+              speed -= Math.max(0.2, speed * .0775);
+
+            } else
+              speed -= Math.max(0.045, speed * .00125);
 
             // Do not allow reversing.
             if (speed < 0) speed = 0;
 
             if (speed > 0) {
-              distance += speed;  
+              distanceChange += speed;
             }
+            
+
+            distance += distanceChange;  
+
+            // Update accumulated distance
+            accumulatedDistance += distanceChange;
 
             // Set test car position.
             setCarAngleByProgress(laneOne, testCar, distance);
             setCarPosByProgress(laneOne, testCar, distance);
 
-            setCarAngleByProgress(laneTwo, testCarTwo, distance);
+            const carTwoAngle = setCarAngleByProgress(laneTwo, testCarTwo, distance);
             setCarPosByProgress(laneTwo, testCarTwo, distance);
 
-            // TODO: Use speed compared to angle to see if should crash :D
-
-            // TODO: Figure out reset mechanism
-
-            if (distance >= laneTwoLength)
-              distance = 1;
-            // if (distance >= 100) distance = 1;
-
+            derailDanger = Math.abs(carTwoAnglePrev - carTwoAngle) * speed;
+            carTwoAnglePrev = carTwoAngle;
+            
             update();
+            
+            // Update UI.
+
+            speedValElem.innerText = cappedSpeed;
+            distanceValElem.innerText = Math.round(accumulatedDistance / 1000);
+
+            currentLapElem.innerText =  Math.round(distance / laneTwoLength * 100);
+
+            // Lap reset mechanism
+            if (distance >= laneTwoLength) {
+              lapsValElem.innerText = Math.floor(accumulatedDistance / laneTwoLength);
+              
+              const laptimeDuration = moment.duration(Date.now() - lapstart);
+
+              laptimeValElem.innerText = `${laptimeDuration.get('hours')}:l${laptimeDuration.get('minutes')}:l${laptimeDuration.get('seconds')}.${laptimeDuration.get('milliseconds')}`
+
+              distance = 1;
+              lapstart = Date.now();
+            }
           });
 
           update();
